@@ -56,10 +56,25 @@ end
 get '/queue/:name' do
   q = mq(params[:name])
 
-  topic, message = client.get(q)
+  begin
+    message = nil
+    topic = nil
+    Timeout::timeout(2) do
+      #topic, message = client.get(q)
+      topic, message = client.get(q)
+      # sleep 0.01 until message
+    end
 
-  status 201
-  body "SUCCESS"
+    client.unsubscribe(q)
+    status 200
+    body message
+
+  rescue Timeout::Error
+    client.unsubscribe(q)
+    status 204
+    ""
+  end
+
 end
 
 error do
@@ -94,7 +109,9 @@ def client
         host: rabbitmq_creds('host'), 
         port: rabbitmq_creds('port'),
         username: rabbitmq_creds('username'),
-        password: rabbitmq_creds('password')
+        password: rabbitmq_creds('password'),
+        clean_session: false,
+        client_id: "test-session"
       )
     rescue Exception => e
       halt 500, "ERR:#{e}"
